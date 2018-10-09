@@ -1,0 +1,6 @@
+Attribution 4.0 International (CC BY 4.0)
+License URL: https://creativecommons.org/licenses/by/4.0/deed.fi
+
+Author: Finnish Population Register Centre
+Source data URL: https://www.avoindata.fi/data/fi/dataset/none
+Source data fetch date: 10.10.2018

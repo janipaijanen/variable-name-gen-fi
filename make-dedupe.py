@@ -19,14 +19,16 @@ class FormatPrinter(pprint.PrettyPrinter):
             return self.formats[type(obj)] % obj, 1, 0
         return pprint.PrettyPrinter.format(self, obj, ctx, maxlvl, lvl)
 
-def find_duplicates(wb:openpyxl.workbook, male_sheetname, female_sheetname) -> [] :
+def find_duplicates(wb:openpyxl.workbook, male_sheetname, female_sheetname) -> {} :
     logger = logging.getLogger(__name__)
     # return: list of duplicate names, e.g. can be given either to a girl or a boy
-    males = []
+    females = []
     males_dict = {}
-    female_dups = []
+    females_dict = {}
+    male_dups = []
 
     male_max = 0
+    male_min = None
     male_total = 0
 
     female_max = 0
@@ -36,9 +38,8 @@ def find_duplicates(wb:openpyxl.workbook, male_sheetname, female_sheetname) -> [
     logger.info("find dups")
 
     header_done = False
-    males = ()
 
-    for row in wb[male_sheetname].iter_rows():
+    for row in wb[female_sheetname].iter_rows():
         name = None
         count = 0
 
@@ -52,23 +53,23 @@ def find_duplicates(wb:openpyxl.workbook, male_sheetname, female_sheetname) -> [
             else:
 
                 count = cell.value
-                male_total = male_total + count
+                female_total = female_total + count
 
-                if count > male_max:
-                    male_max = count
-                    male_total = male_total + count
+                if count > female_max:
+                    female_max = count
+                    female_total = male_total + count
 
-        males_dict[name] = count
+        females_dict[name] = count
 
-    logger.debug("male max: {}".format(male_max))
-    logger.debug("male total: {}".format(male_total))
+    logger.debug("male max: {}".format(female_max))
+    logger.debug("male total: {}".format(female_total))
 
-    dict_female_dups = {}
-    females = []
+    dict_male_dups = {}
+    males = []
 
-    male_dup_max = 0
+    female_dup_max = 0
 
-    for row in wb[female_sheetname].iter_rows():
+    for row in wb[male_sheetname].iter_rows():
         name = None
         count = 0
 
@@ -77,41 +78,41 @@ def find_duplicates(wb:openpyxl.workbook, male_sheetname, female_sheetname) -> [
 
         for cell in row:
             column += 1
-            if cell.value in males_dict:
+            # Is it gender neutral name?
+            if cell.value in females_dict:
                 name = cell.value
                 neutral_name = True
 
-
             if column == 0:
                 if neutral_name == False:
-                    females.append(cell.value)
+                    males.append(cell.value)
 
                 continue
 
 
             if name is not None:
                 count = cell.value
-                female_total = female_total + count
+                female_total = male_total + count
 
-                if count > female_max:
-                    female_max = count
+                if count > male_max:
+                    male_max = count
 
-                if female_min is None:
-                    female_min = count
-                elif count < female_min:
-                    female_min = count
+                if male_min is None:
+                    male_min = count
+                elif count < male_min:
+                    male_min = count
 
-                if males_dict[name] > male_dup_max:
-                    male_dup_max = males_dict[name]
+                if females_dict[name] > female_dup_max:
+                    female_dup_max = females_dict[name]
 
 
         if name is not None:
             #logger.debug("{}:{}".format(name, count))
-            female_dups.append( (name, count)  )
+            male_dups.append( (name, count)  )
 
-    logger.debug ("female_min: {}".format(female_min))
-    logger.debug ("female_max: {}".format(female_max))
-    logger.debug ("male_dup_max: {}".format(male_dup_max))
+    logger.debug ("male_min: {}".format(male_min))
+    logger.debug ("male_max: {}".format(male_max))
+    logger.debug ("female_dup_max: {}".format(female_dup_max))
 
     scales = {}
     scale_max = None
@@ -119,8 +120,8 @@ def find_duplicates(wb:openpyxl.workbook, male_sheetname, female_sheetname) -> [
     name_max = None
     name_min = None
 
-    for (name, count) in female_dups:
-        duh = males_dict[name] / count * 1.0
+    for (name, count) in male_dups:
+        duh = females_dict[name] / count * 1.0
         scales[name] = duh
 
         if scale_max is None:
@@ -140,14 +141,14 @@ def find_duplicates(wb:openpyxl.workbook, male_sheetname, female_sheetname) -> [
     logger.debug("scale_min {:+.6f}, scale_max {:+.6f}".format(scale_min, scale_max))
     logger.debug("name_min {}, name_max {}".format(name_min, name_max))
 
-    # As zero is female value and one is male value,
-    # we want to distinquish gender neutral names from gender directed weighted.
+    # As zero is male value and one is female value,
+    # we want to distinquish gender neutral names from gender target names.
     min_target = 0.001
     max_target = 0.99
 
-    for (name, count) in female_dups:
+    for (name, count) in male_dups:
 
-        dict_female_dups[name] = (
+        dict_male_dups[name] = (
                 # scales to (0 .. 1) and works ok, but we need something else
                 #( scales[name] - scale_min) / (scale_max - scale_min)
 
@@ -156,15 +157,18 @@ def find_duplicates(wb:openpyxl.workbook, male_sheetname, female_sheetname) -> [
 
             )
 
-    for name in dict_female_dups:
-        yield (name, dict_female_dups[name])
+    grande_gender = {}
 
-    for name in females:
-        yield (name, 0.0)
+    for name in females_dict:
+        grande_gender[name] = 1.0
 
-    for name in males_dict:
-        if name not in female_dups:
-            yield (name, 1.0)
+    for name in males:
+        grande_gender[name] = 0.0
+
+    for name in dict_male_dups:
+        grande_gender[name] = dict_male_dups[name]
+
+    return grande_gender
 
 def process_gender(wb:openpyxl.workbook, sheetname:str ) -> {}:
     total = 0
@@ -176,6 +180,7 @@ def process_gender(wb:openpyxl.workbook, sheetname:str ) -> {}:
 
 def process_input_file(filename:str) -> None:
     pass
+    logger = logging.getLogger(__name__)
     wb = load_workbook(filename, read_only=True)
 
     ws_malename = "Miehet kaikki"
@@ -188,10 +193,26 @@ def process_input_file(filename:str) -> None:
     # Column A: Given name
     # Column B: Name count
 
-    for (name, value) in find_duplicates(wb, male_sheetname=ws_malename, female_sheetname=ws_femalename):
-        FormatPrinter({float: "%.6f", int: "%06X"}).pprint( (name, value))
+    # for yielding...
+    #for (name, value) in find_duplicates(wb, male_sheetname=ws_malename, female_sheetname=ws_femalename):
+    #    FormatPrinter({float: "%.6f", int: "%06X"}).pprint( (name, value))
 
-    #print ("female duplicates over males: {}".format(dups))
+    # for return value
+    name_items = find_duplicates(wb, male_sheetname=ws_malename, female_sheetname=ws_femalename)
+    #for (name,value) in find_duplicates(wb, male_sheetname=ws_malename, female_sheetname=ws_femalename).items():
+    #    logger.debug("{} {}".format(name,value))
+
+    import json
+    dump = json.dumps(name_items, ensure_ascii=False, sort_keys=True, indent=4)
+    license_text = ""
+    with open("./source-data/LICENSE.txt") as fh:
+        for line in fh.readlines():
+            license_text = "#" + line + license_text
+
+    gender_names = license_text + "gender_names = \\ \n" + dump
+    print(gender_names)
+
+    #print ("male duplicates over females: {}".format(dups))
     #process_gender(wb, ws_malename)
 
 def main():

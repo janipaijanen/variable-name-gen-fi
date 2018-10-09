@@ -35,7 +35,7 @@ def find_duplicates(wb:openpyxl.workbook, male_sheetname, female_sheetname) -> {
     female_min = None
     female_total = 0
 
-    logger.info("find dups")
+    #logger.info("find dups")
 
     header_done = False
 
@@ -212,22 +212,29 @@ def process_input_file(filename:str) -> None:
     gender_names = license_text + "gender_names = \\ \n" + dump
     print(gender_names)
 
-    #print ("male duplicates over females: {}".format(dups))
-    #process_gender(wb, ws_malename)
-
 def main():
     format='%(levelname)s:%(message)s'
-    logging.basicConfig(format=format, level=logging.DEBUG)
+    logging.basicConfig(format=format, level=logging.INFO)
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("-i", "--input-file", type=str, default=None, help="input file provided by Finnish Population Register Centre")
+    parser.add_argument("-g", "--given-names", type=str, default=None, help="Given names input file provided by Finnish Population Register Centre")
+    parser.add_argument("-s", "--surnames", type=str, default=None, help="Surnames input file provided by Finnish Population Register Centre")
+    parser.add_argument("-pg", "--print-gender",  action='store_true', default=False, help="Print gender from file provided by Finnish Population Register Centre")
+    parser.add_argument("-pf", "--print-frequency", action='store_true', default=False, help="Print frequency provided by Finnish Population Register Centre")
+
     args = parser.parse_args()
 
-    if args.input_file is None or os.path.isfile(args.input_file) is False:
+    if args.print_gender is not False and (args.given_names is None or os.path.isfile(args.given_names) is False):
         parser.print_usage()
         sys.exit()
 
-    process_input_file(args.input_file)
+    if args.print_frequency is not False and (args.surnames is None or os.path.isfile(args.surnames) is False):
+        parser.print_usage()
+        sys.exit()
+
+
+    if args.print_gender == True:
+        process_input_file(args.given_names)
 
 
 if __name__ == '__main__':

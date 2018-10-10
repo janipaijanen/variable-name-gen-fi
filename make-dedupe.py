@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
 # encoding: utf-8
-# (C) Copyright 2018 Jani Päijänen
 import argparse
 import os, sys
 import openpyxl
 from openpyxl import load_workbook
 import logging
 import json
-
 
 def find_duplicates(wb:openpyxl.workbook, male_sheetname, female_sheetname) -> {} :
     logger = logging.getLogger(__name__)
@@ -175,15 +173,7 @@ def process_gender(filename:str) -> None:
     # Column B: Name count
     name_items = find_duplicates(wb, male_sheetname=ws_malename, female_sheetname=ws_femalename)
 
-    import json
-    dump = json.dumps(name_items, ensure_ascii=False, sort_keys=True, indent=4)
-    license_text = ""
-    with open("./source-data/LICENSE.txt") as fh:
-        for line in fh.readlines():
-            license_text = "#" + line + license_text
-
-    gender_names = license_text + "gender_names = \\ \n" + dump
-    print(gender_names)
+    render_python("given_name_freq", "gender_names", "./source-data/LICENSE.txt")
 
 def _get_givennames(wb:openpyxl.workbook, sheetname:str, has_header:bool) -> {}:
     logger = logging.getLogger(__name__)
@@ -278,8 +268,6 @@ def _process_frequency_surname(filename:str) -> {}:
 
 def render_python(attributename:str, freq_dict:{}, license_file:str) -> str:
     logger = logging.getLogger(__name__)
-    logger.error ("Not yet implemented.")
-
 
     dump = json.dumps(freq_dict, ensure_ascii=False, sort_keys=True, indent=4)
     license_text = ""
@@ -310,7 +298,7 @@ def process_frequency(filename_given_names:str, filename_surnames:str) -> None:
 
 def main():
     format='%(levelname)s:%(message)s'
-    logging.basicConfig(format=format, level=logging.DEBUG)
+    logging.basicConfig(format=format, level=logging.INFO)
 
     parser = argparse.ArgumentParser()
     parser.add_argument("-g", "--given-names", type=str, default=None, help="Given names input file provided by Finnish Population Register Centre")
@@ -321,7 +309,10 @@ def main():
     args = parser.parse_args()
 
     if args.print_gender is not False and (args.given_names is None or os.path.isfile(args.given_names) is False):
-        parser.print_usage()
+        parser.print_usage()prints to stdout
+```
+
+```
         sys.exit()
 
     if args.print_frequency is not False and (args.surnames is None or os.path.isfile(args.surnames) is False):

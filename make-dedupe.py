@@ -6,18 +6,8 @@ import os, sys
 import openpyxl
 from openpyxl import load_workbook
 import logging
-import pprint
+import json
 
-class FormatPrinter(pprint.PrettyPrinter):
-
-    def __init__(self, formats):
-        super(FormatPrinter, self).__init__()
-        self.formats = formats
-
-    def format(self, obj, ctx, maxlvl, lvl):
-        if type(obj) in self.formats:
-            return self.formats[type(obj)] % obj, 1, 0
-        return pprint.PrettyPrinter.format(self, obj, ctx, maxlvl, lvl)
 
 def find_duplicates(wb:openpyxl.workbook, male_sheetname, female_sheetname) -> {} :
     logger = logging.getLogger(__name__)
@@ -34,8 +24,6 @@ def find_duplicates(wb:openpyxl.workbook, male_sheetname, female_sheetname) -> {
     female_max = 0
     female_min = None
     female_total = 0
-
-    #logger.info("find dups")
 
     header_done = False
 
@@ -170,16 +158,9 @@ def find_duplicates(wb:openpyxl.workbook, male_sheetname, female_sheetname) -> {
 
     return grande_gender
 
-def process_gender(wb:openpyxl.workbook, sheetname:str ) -> {}:
-    total = 0
-    # return {str:float}
-    # count total
-    # read row, count %
 
-    pass
+def process_gender(filename:str) -> None:
 
-def process_input_file(filename:str) -> None:
-    pass
     logger = logging.getLogger(__name__)
     wb = load_workbook(filename, read_only=True)
 
@@ -192,15 +173,7 @@ def process_input_file(filename:str) -> None:
 
     # Column A: Given name
     # Column B: Name count
-
-    # for yielding...
-    #for (name, value) in find_duplicates(wb, male_sheetname=ws_malename, female_sheetname=ws_femalename):
-    #    FormatPrinter({float: "%.6f", int: "%06X"}).pprint( (name, value))
-
-    # for return value
     name_items = find_duplicates(wb, male_sheetname=ws_malename, female_sheetname=ws_femalename)
-    #for (name,value) in find_duplicates(wb, male_sheetname=ws_malename, female_sheetname=ws_femalename).items():
-    #    logger.debug("{} {}".format(name,value))
 
     import json
     dump = json.dumps(name_items, ensure_ascii=False, sort_keys=True, indent=4)
@@ -212,9 +185,132 @@ def process_input_file(filename:str) -> None:
     gender_names = license_text + "gender_names = \\ \n" + dump
     print(gender_names)
 
+def _get_givennames(wb:openpyxl.workbook, sheetname:str, has_header:bool) -> {}:
+    logger = logging.getLogger(__name__)
+    header_done = False
+    names = {}
+
+    for row in wb[sheetname].iter_rows():
+
+        if header_done == False and has_header == True:
+            header_done = True
+            continue
+
+        name = None
+        for cell in row:
+            if name is None:
+                name = cell.value
+            else:
+                names[name] = cell.value
+
+    return names
+
+def _process_frequency_givenname(filename:str) -> {}:
+    logger = logging.getLogger(__name__)
+    wb = load_workbook(filename, read_only=True)
+    ws_malename = "Miehet kaikki"
+    ws_femalename = "Naiset kaikki"
+
+    try:
+        ws = wb[ws_malename]
+        ws = wb[ws_femalename]
+    except Exception as error:
+        logger.error("Filename was: {}".format(filename))
+        raise
+
+    stats1 = _get_givennames(wb, ws_malename, has_header=True)
+    stats2 = _get_givennames(wb, ws_femalename, has_header=True)
+    givennames = {**stats1, **stats2}
+    total_givennames = len(givennames)
+    stats_givename = {}
+
+    # calculate freqs from stats
+    for (givenname,count) in givennames.items():
+        stats_givename[givenname] = count / total_givennames * 1.0
+
+    logger.debug (stats_givename)
+
+    return stats_givename
+
+def _get_surnames(wb:openpyxl.workbook, sheetname:str, has_header:bool) -> {}:
+    logger = logging.getLogger(__name__)
+
+    header_done = False
+    names = {}
+
+    for row in wb[sheetname].iter_rows():
+
+        if header_done == False and has_header == True:
+            header_done = True
+            continue
+
+        name = None
+        for cell in row:
+            if name is None:
+                name = cell.value
+            else:
+                names[name] = cell.value
+
+    return names
+
+def _process_frequency_surname(filename:str) -> {}:
+    logger = logging.getLogger(__name__)
+    wb = load_workbook(filename, read_only=True)
+    ws_surnames = "Nimet"
+
+    try:
+        ws = wb[ws_surnames]
+    except Exception as error:
+        logger.error("Filename was: {}".format(filename))
+        raise
+
+    surnames = _get_surnames(wb, ws_surnames, has_header=True)
+
+    total_surnames = len(surnames)
+    stats_surnames = {}
+
+    # calculate freqs from stats
+    for (surname, count) in surnames.items():
+        stats_surnames[surname] = count / total_surnames * 1.0
+
+    logger.debug (stats_surnames)
+    return stats_surnames
+
+def render_python(attributename:str, freq_dict:{}, license_file:str) -> str:
+    logger = logging.getLogger(__name__)
+    logger.error ("Not yet implemented.")
+
+
+    dump = json.dumps(freq_dict, ensure_ascii=False, sort_keys=True, indent=4)
+    license_text = ""
+    with open(license_file) as fh:
+        for line in fh.readlines():
+            license_text = "#" + line + license_text
+
+    gender_names = license_text + attributename + " = \\ \n" + dump
+    print(gender_names)
+
+    return None
+
+
+def process_frequency(filename_given_names:str, filename_surnames:str) -> None:
+    logger = logging.getLogger(__name__)
+
+    # count all given names and frequencies (0..1)
+    freq_given_names = _process_frequency_givenname(filename_given_names)
+
+    # count all surnames and frequencies (0..1)
+    freq_surnames = _process_frequency_surname(filename_surnames)
+
+    license_file = "./source-data/LICENSE.txt"
+
+    render_python("given_name_freq", freq_given_names, license_file)
+    render_python("surname_freq", freq_surnames, license_file)
+
+
 def main():
     format='%(levelname)s:%(message)s'
-    logging.basicConfig(format=format, level=logging.INFO)
+    logging.basicConfig(format=format, level=logging.DEBUG)
 
     parser = argparse.ArgumentParser()
     parser.add_argument("-g", "--given-names", type=str, default=None, help="Given names input file provided by Finnish Population Register Centre")
@@ -232,10 +328,11 @@ def main():
         parser.print_usage()
         sys.exit()
 
-
     if args.print_gender == True:
-        process_input_file(args.given_names)
+        process_gender(args.given_names)
 
+    if args.print_frequency == True:
+        process_frequency(args.given_names, args.surnames)
 
 if __name__ == '__main__':
     main()
